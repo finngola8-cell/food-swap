@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Food Swap Tool with API</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+        background-color: #f8f9fa;
+    }
+    h1 {
+        text-align: center;
+    }
+    #swap-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    #result {
+        margin-top: 20px;
+        font-size: 18px;
+        color: #333;
+    }
+</style>
+</head>
+<body>
+<h1>Food Swap Tool with API</h1>
+<div id="swap-container">
+    <input type="text" id="foodInput" placeholder="Type a food to find a healthy alternative" />
+    <div id="result"></div>
+</div>
+
+<script>
+const apiKey = '3d6bcb655093446aa4c2b7cb4b3a22a9';
+
+const input = document.getElementById('foodInput');
+const resultDiv = document.getElementById('result');
+
+input.addEventListener('input', () => {
+    const userFood = input.value.toLowerCase().trim();
+    if (userFood.length > 2) { // start searching after 3 characters
+        fetchAlternative(userFood);
+    } else {
+        resultDiv.textContent = "";
+    }
+});
+
+function fetchAlternative(food) {
+    // Search for recipes related to the food
+    const url = `https://api.spoonacular.com/recipes/complexSearch?query=${food}&number=1&sort=random&apiKey=${apiKey}`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.results && data.results.length > 0) {
+                const recipeId = data.results[0].id;
+                getHealthyAlternative(recipeId);
+            } else {
+                resultDiv.textContent = "No suggestions found.";
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching data:', error);
+            resultDiv.textContent = "Error fetching data.";
+        });
+}
+
+function getHealthyAlternative(recipeId) {
+    // Fetch detailed info about the recipe
+    const url = `https://api.spoonacular.com/recipes/${recipeId}/nutritionWidget.json?apiKey=${apiKey}`;
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            // Show calories and link to recipe
+            resultDiv.innerHTML = `Check out this healthy recipe!<br>Calories: ${data.calories}<br><a href="https://spoonacular.com/recipes/${recipeId}" target="_blank">View Recipe</a>`;
+        })
+        .catch(error => {
+            console.error('Error fetching recipe details:', error);
+            resultDiv.textContent = "Could not retrieve detailed info.";
+        });
+}
+</script>
+</body>
+</html>
