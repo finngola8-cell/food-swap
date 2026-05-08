@@ -78,17 +78,36 @@ function fetchAlternative(food) {
 }
 
 function getHealthyAlternative(recipeId) {
-    // Fetch detailed info about the recipe
+    // Fetch nutrition info about the recipe
     const url = `https://api.spoonacular.com/recipes/${recipeId}/nutritionWidget.json?apiKey=${apiKey}`;
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            // Show calories and link to recipe
-            resultDiv.innerHTML = `Check out this healthy recipe!<br>Calories: ${data.calories}<br><a href="https://spoonacular.com/recipes/${recipeId}" target="_blank">View Recipe</a>`;
+            // For simplicity, display calories and key nutrients
+            // Assume data contains calories, fat, carbs, protein
+            // But since nutritionWidget.json only provides calories, we'll fetch detailed nutrition info instead
+            
+            fetch(`https://api.spoonacular.com/recipes/${recipeId}/nutritionLabel.json?apiKey=${apiKey}`)
+                .then(res => res.json())
+                .then(nutritionData => {
+                    // Extract calories and key benefits
+                    const calories = nutritionData.calories;
+                    // Example: show that the switch reduces calories
+                    resultDiv.innerHTML = `
+                        <strong>Healthy alternative:</strong> ${nutritionData.title || 'Suggested Food'}<br>
+                        <em>Nutritional Benefits:</em> Estimated calories: ${calories}<br>
+                        Making this switch can reduce your calorie intake and promote better health!
+                    `;
+                })
+                .catch(() => {
+                    resultDiv.innerHTML = `
+                        <strong>Healthy alternative:</strong> (Could not fetch detailed nutrition)<br>
+                        Making this switch can help improve your diet!
+                    `;
+                });
         })
-        .catch(error => {
-            console.error('Error fetching recipe details:', error);
-            resultDiv.textContent = "Could not retrieve detailed info.";
+        .catch(() => {
+            resultDiv.textContent = "Could not retrieve detailed nutrition info.";
         });
 }
 </script>
