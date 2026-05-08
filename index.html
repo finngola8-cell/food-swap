@@ -1,98 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Healthy Food Swap Assistant</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 40px;
-    background: #f0f0f0;
-  }
-  h1 {
-    text-align: center;
-  }
-  #container {
-    max-width: 700px;
-    margin: 0 auto;
-    padding: 20px;
-    background: #fff;
-    border-radius: 8px;
-  }
-  input {
-    width: 100%;
-    padding: 12px;
-    font-size: 16px;
-  }
-  #response {
-    margin-top: 20px;
-    font-size: 16px;
-    line-height: 1.4;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Stock Finder</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      margin: 0;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+      color: #38bdf8;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 10px;
+      margin: 30px 0;
+    }
+
+    input {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 14px 20px;
+      border: none;
+      border-radius: 10px;
+      background: #38bdf8;
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 14px;
+      margin-top: 20px;
+    }
+
+    .green {
+      color: #22c55e;
+    }
+
+    .red {
+      color: #ef4444;
+    }
+
+    .loading {
+      opacity: 0.7;
+    }
+
+    .disclaimer {
+      margin-top: 30px;
+      font-size: 13px;
+      color: #94a3b8;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-<h1>Healthy Food Swap Assistant</h1>
-<div id="container">
-  <input type="text" id="foodInput" placeholder="Type a food item..." />
-  <div id="response"></div>
+
+<div class="container">
+  <h1>📈 AI Stock Finder</h1>
+
+  <div class="search-box">
+    <input
+      type="text"
+      id="stockInput"
+      placeholder="Enter stock symbol (AAPL, TSLA, NVDA)"
+    />
+    <button onclick="getStock()">Analyze</button>
+  </div>
+
+  <div id="result"></div>
+
+  <div class="disclaimer">
+    This tool is for educational purposes only and not financial advice.
+  </div>
 </div>
 
 <script>
-const swaps = {
-  "potato chips": {
-    swap: "Air-popped popcorn",
-    why: "Lower in fat and calories, still crunchy.",
-    calories: { original: 150, swap: 90 },
-    protein: { original: "3g", swap: "3g" },
-    carbs: { original: "15g", swap: "20g" },
-    fat: { original: "10g", swap: "1g" },
-    tip: "Add a pinch of sea salt or nutritional yeast for flavor."
-  },
-  "soda": {
-    swap: "Sparkling water with lemon",
-    why: "No added sugar, fewer empty calories.",
-    calories: { original: 150, swap: 0 },
-    protein: { original: "0g", swap: "0g" },
-    carbs: { original: "39g", swap: "0g" },
-    fat: { original: "0g", swap: "0g" },
-    tip: "Add fresh fruit slices for flavor."
-  },
-  "white bread": {
-    swap: "Whole grain bread",
-    why: "Higher in fiber, keeps you full longer.",
-    calories: { original: 70, swap: 80 },
-    protein: { original: "2g", swap: "4g" },
-    carbs: { original: "13g", swap: "15g" },
-    fat: { original: "1g", swap: "1.5g" },
-    tip: "Look for 100% whole grain labels."
-  }
-  // Add more foods if needed
-};
+  const API_KEY = "8e3ec6acec291620ce9a92d720366eab";
 
-const input = document.getElementById('foodInput');
-const responseDiv = document.getElementById('response');
+  async function getStock() {
+    const symbol = document
+      .getElementById("stockInput")
+      .value
+      .trim()
+      .toUpperCase();
 
-input.addEventListener('input', () => {
-  const userFood = input.value.toLowerCase().trim();
-  if (swaps[userFood]) {
-    const data = swaps[userFood];
-    responseDiv.innerHTML = `
-      <strong>Healthier Swap:</strong> ${data.swap}<br>
-      <strong>Why:</strong> ${data.why}<br>
-      <strong>Calories:</strong> ${data.calories.original} -> ${data.calories.swap}<br>
-      <strong>Protein:</strong> ${data.protein.original} -> ${data.protein.swap}<br>
-      <strong>Carbs:</strong> ${data.carbs.original} -> ${data.carbs.swap}<br>
-      <strong>Fat:</strong> ${data.fat.original} -> ${data.fat.swap}<br>
-      <strong>Tip:</strong> ${data.tip}
+    const resultDiv = document.getElementById("result");
+
+    if (!symbol) {
+      resultDiv.innerHTML = `
+        <div class="card">
+          Please enter a stock symbol.
+        </div>
+      `;
+      return;
+    }
+
+    resultDiv.innerHTML = `
+      <div class="card loading">
+        Loading real-time stock data...
+      </div>
     `;
-  } else if (userFood.length > 2) {
-    responseDiv.innerHTML = "Try another food or add more options.";
-  } else {
-    responseDiv.innerHTML = "";
+
+    try {
+      const response = await fetch(
+        `https://financialmodelingprep.com/api/v3/quote/${symbol}?apikey=${API_KEY}`
+      );
+
+      const data = await response.json();
+
+      if (!data || data.length === 0) {
+        resultDiv.innerHTML = `
+          <div class="card">
+            Stock not found.
+          </div>
+        `;
+        return;
+      }
+
+      const stock = data[0];
+
+      const changeClass = stock.change >= 0 ? "green" : "red";
+
+      let recommendation = "Hold";
+      let reason = "Market conditions appear neutral.";
+
+      if (stock.change > 2) {
+        recommendation = "Potential Buy";
+        reason = "Strong positive momentum today.";
+      } else if (stock.change < -2) {
+        recommendation = "Watch Carefully";
+        reason = "Large decline may indicate volatility.";
+      }
+
+      resultDiv.innerHTML = `
+        <div class="card">
+          <h2>${stock.name} (${stock.symbol})</h2>
+
+          <p><strong>Price:</strong> $${stock.price}</p>
+
+          <p>
+            <strong>Daily Change:</strong>
+            <span class="${changeClass}">
+              ${stock.change} (${stock.changesPercentage.toFixed(2)}%)
+            </span>
+          </p>
+
+          <p><strong>Volume:</strong> ${stock.volume.toLocaleString()}</p>
+
+          <hr>
+
+          <h3>AI Recommendation: ${recommendation}</h3>
+
+          <p>${reason}</p>
+        </div>
+      `;
+
+    } catch (error) {
+      console.error(error);
+
+      resultDiv.innerHTML = `
+        <div class="card">
+          Error fetching stock data.
+        </div>
+      `;
+    }
   }
-});
 </script>
+
 </body>
 </html>
