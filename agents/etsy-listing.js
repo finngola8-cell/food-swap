@@ -7,9 +7,7 @@
  */
 
 const fs = require('fs');
-const crypto = require('crypto');
 const axios = require('axios');
-const OAuth = require('oauth-1.0a');
 const { updateState, readState, appendError } = require('../lib/state-manager');
 const { createLogger } = require('../lib/logger');
 const { RateLimiter, withRetry, sleep, isRateLimit } = require('../lib/rate-limiter');
@@ -34,21 +32,10 @@ const TAXONOMY_IDS = {
   'phone case': 69150432,   // Electronics & Accessories > Phone Cases
 };
 
-function etsyAuthHeaders(method, url, token, tokenSecret) {
-  const oauth = OAuth({
-    consumer: { key: process.env.ETSY_API_KEY, secret: process.env.ETSY_API_KEY },
-    signature_method: 'HMAC-SHA1',
-    hash_function(baseString, key) {
-      return crypto.createHmac('sha1', key).update(baseString).digest('base64');
-    },
-  });
-
-  const requestData = { url, method };
-  const tokenData = token ? { key: token, secret: tokenSecret || '' } : null;
-  const oauthHeader = oauth.toHeader(oauth.authorize(requestData, tokenData));
-
+// Etsy v3 uses OAuth 2.0 Bearer tokens (not OAuth 1.0a)
+function etsyHeaders() {
   return {
-    ...oauthHeader,
+    Authorization: `Bearer ${process.env.ETSY_ACCESS_TOKEN}`,
     'x-api-key': process.env.ETSY_API_KEY,
     'Content-Type': 'application/json',
   };
@@ -56,7 +43,7 @@ function etsyAuthHeaders(method, url, token, tokenSecret) {
 
 async function etsyRequest(method, path, body = null) {
   const url = `${ETSY_BASE}${path}`;
-  const headers = etsyAuthHeaders(method.toUpperCase(), url, process.env.ETSY_ACCESS_TOKEN);
+  const headers = etsyHeaders();
 
   await etsyLimiter.acquire();
 

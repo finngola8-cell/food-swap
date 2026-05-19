@@ -43,7 +43,7 @@ Output: high quality PNG suitable for print production`;
 }
 
 async function generateWithFal(prompt) {
-  const fal = require('@fal-ai/serverless-client');
+  const { fal } = require('@fal-ai/client');
   fal.config({ credentials: process.env.FAL_API_KEY });
 
   const result = await withRetry(

@@ -39,8 +39,8 @@ async function fetchEtsyStats(shopId) {
         `https://openapi.etsy.com/v3/application/shops/${shopId}/stats`,
         {
           headers: {
-            'x-api-key': process.env.ETSY_API_KEY,
             Authorization: `Bearer ${process.env.ETSY_ACCESS_TOKEN}`,
+            'x-api-key': process.env.ETSY_API_KEY,
           },
           params: { unit: 'day', limit: 7 },
           timeout: 20_000,
