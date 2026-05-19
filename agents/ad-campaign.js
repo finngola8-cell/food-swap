@@ -25,6 +25,10 @@ const META_ADS_DAILY_BUDGET = 3.00;
 const META_ADS_MAX_BUDGET = 15.00;
 const META_ROAS_PAUSE_THRESHOLD = 1.5;
 
+// Safety switch: set META_ADS_ENABLED=true in .env only when you are ready to spend.
+// Leaving this off saves ~$300-10k/month during the initial scaling phase.
+const META_ADS_ENABLED = process.env.META_ADS_ENABLED === 'true';
+
 const metaLimiter = new RateLimiter(200, 3600_000);  // Meta: 200 req/hour
 const pinterestLimiter = new RateLimiter(100, 60_000); // Pinterest: 100 req/min
 
@@ -130,6 +134,10 @@ async function metaPost(path, params) {
 }
 
 async function createMetaAdCampaign(listing, log) {
+  if (!META_ADS_ENABLED) {
+    log.info('Meta Ads disabled (META_ADS_ENABLED != true) — skipping');
+    return null;
+  }
   if (!process.env.META_ACCESS_TOKEN || !process.env.META_AD_ACCOUNT_ID) {
     log.info('Meta Ads not configured — skipping');
     return null;
