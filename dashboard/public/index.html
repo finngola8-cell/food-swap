@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ETSY POD — MISSION CONTROL</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: #020810;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    user-select: none;
+    color: #a0c4ff;
+  }
+
+  /* ── HUD top bar ─────────────────────────────────────────────────────── */
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0; height: 56px;
+    background: linear-gradient(180deg, rgba(0,10,30,0.98) 0%, rgba(0,10,30,0.7) 100%);
+    border-bottom: 1px solid rgba(0,150,255,0.25);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; z-index: 100;
+  }
+  .hud-logo {
+    font-size: 13px; font-weight: bold; letter-spacing: 3px; color: #fff;
+    text-shadow: 0 0 12px rgba(0,180,255,0.8);
+  }
+  .hud-logo span { color: #ffaa00; }
+  .hud-metrics {
+    display: flex; gap: 32px;
+  }
+  .metric {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .metric-val {
+    font-size: 18px; font-weight: bold; color: #fff;
+    text-shadow: 0 0 8px rgba(0,200,255,0.7);
+  }
+  .metric-val.green { color: #00ff99; text-shadow: 0 0 8px rgba(0,255,150,0.7); }
+  .metric-val.amber { color: #ffaa00; text-shadow: 0 0 8px rgba(255,170,0,0.7); }
+  .metric-val.red   { color: #ff4444; text-shadow: 0 0 8px rgba(255,68,68,0.7); }
+  .metric-lbl { font-size: 9px; letter-spacing: 2px; color: rgba(160,196,255,0.6); }
+  .hud-right { font-size: 11px; color: rgba(160,196,255,0.5); letter-spacing: 1px; }
+
+  /* ── Canvas ──────────────────────────────────────────────────────────── */
+  #city {
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+  }
+
+  /* ── Hover card ──────────────────────────────────────────────────────── */
+  .card {
+    position: fixed; pointer-events: none; z-index: 200;
+    background: rgba(2,10,25,0.92);
+    border: 1px solid rgba(0,180,255,0.4);
+    border-radius: 4px; padding: 14px 18px; min-width: 220px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 30px rgba(0,100,255,0.2), inset 0 0 20px rgba(0,50,150,0.1);
+    transition: opacity 0.15s;
+  }
+  .card.hidden { opacity: 0; }
+  .card-header {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px;
+  }
+  .card-id { font-size: 11px; color: rgba(0,200,255,0.5); letter-spacing: 2px; }
+  .card-name { font-size: 14px; font-weight: bold; color: #fff; letter-spacing: 1px; }
+  .card-role { font-size: 10px; color: rgba(160,196,255,0.5); letter-spacing: 2px; margin-bottom: 10px; }
+  .card-status-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .dot.online  { background: #00ff88; color: #00ff88; }
+  .dot.idle    { background: #ffaa00; color: #ffaa00; }
+  .dot.offline { background: #ff4444; color: #ff4444; }
+  .card-status-text { font-size: 11px; letter-spacing: 2px; }
+  .card-status-text.online  { color: #00ff88; }
+  .card-status-text.idle    { color: #ffaa00; }
+  .card-status-text.offline { color: #ff4444; }
+  .card-divider { border: none; border-top: 1px solid rgba(0,150,255,0.2); margin: 8px 0; }
+  .card-stat { display: flex; justify-content: space-between; font-size: 11px; margin: 4px 0; }
+  .card-stat-key { color: rgba(160,196,255,0.5); }
+  .card-stat-val { color: #a0d4ff; }
+  .card-log { margin-top: 8px; }
+  .card-log-line {
+    font-size: 9px; color: rgba(100,150,200,0.5); line-height: 1.6;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+  }
+
+  /* ── Pipeline strip ──────────────────────────────────────────────────── */
+  #pipeline {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
+    background: linear-gradient(0deg, rgba(0,10,30,0.98) 0%, rgba(0,10,30,0.7) 100%);
+    border-top: 1px solid rgba(0,150,255,0.2);
+    display: flex; align-items: center; justify-content: center; gap: 0;
+    z-index: 100;
+  }
+  .pipe-stage {
+    display: flex; align-items: center; gap: 0; font-size: 10px;
+  }
+  .pipe-block {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 20px; border-right: 1px solid rgba(0,150,255,0.15);
+  }
+  .pipe-block:last-child { border-right: none; }
+  .pipe-count { font-size: 16px; font-weight: bold; color: #fff; text-shadow: 0 0 8px rgba(0,200,255,0.5); }
+  .pipe-label { font-size: 8px; letter-spacing: 1.5px; color: rgba(160,196,255,0.4); margin-top: 2px; }
+  .pipe-arrow {
+    font-size: 12px; color: rgba(0,200,255,0.3); padding: 0 4px;
+    animation: pulse-arrow 2s ease-in-out infinite;
+  }
+  @keyframes pulse-arrow { 0%,100%{opacity:0.2} 50%{opacity:0.8} }
+
+  /* ── Scanline overlay ────────────────────────────────────────────────── */
+  #scanlines {
+    position: fixed; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:50;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+    );
+  }
+
+  #clock { font-size: 11px; color: rgba(0,200,255,0.4); letter-spacing: 2px; }
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-logo">ETSY POD &nbsp;<span>MISSION CONTROL</span></div>
+  <div class="hud-metrics" id="hud-metrics">
+    <div class="metric"><div class="metric-val green" id="m-revenue">$0.00</div><div class="metric-lbl">REVENUE</div></div>
+    <div class="metric"><div class="metric-val amber" id="m-spend">$0.00</div><div class="metric-lbl">AD SPEND</div></div>
+    <div class="metric"><div class="metric-val" id="m-profit">$0.00</div><div class="metric-lbl">NET PROFIT</div></div>
+    <div class="metric"><div class="metric-val" id="m-listings">0</div><div class="metric-lbl">LIVE LISTINGS</div></div>
+    <div class="metric"><div class="metric-val" id="m-orders">0</div><div class="metric-lbl">TOTAL ORDERS</div></div>
+    <div class="metric"><div class="metric-val" id="m-agents">0/7</div><div class="metric-lbl">AGENTS ONLINE</div></div>
+  </div>
+  <div class="hud-right"><span id="clock">--:--:--</span>&nbsp;&nbsp;●&nbsp;LIVE</div>
+</div>
+
+<!-- Canvas -->
+<canvas id="city"></canvas>
+
+<!-- Scanlines -->
+<div id="scanlines"></div>
+
+<!-- Hover card -->
+<div class="card hidden" id="card">
+  <div class="card-header">
+    <span class="card-id" id="card-id">00</span>
+    <span class="card-name" id="card-name">AGENT</span>
+  </div>
+  <div class="card-role" id="card-role">ROLE</div>
+  <div class="card-status-row">
+    <div class="dot offline" id="card-dot"></div>
+    <span class="card-status-text offline" id="card-status-text">OFFLINE</span>
+  </div>
+  <hr class="card-divider">
+  <div id="card-stats"></div>
+  <div class="card-log" id="card-log"></div>
+</div>
+
+<!-- Pipeline strip -->
+<div id="pipeline">
+  <div class="pipe-block"><div class="pipe-count" id="p-trends">0</div><div class="pipe-label">TRENDS</div></div>
+  <div class="pipe-arrow">›</div>
+  <div class="pipe-block"><div class="pipe-count" id="p-queue">0</div><div class="pipe-label">DESIGN QUEUE</div></div>
+  <div class="pipe-arrow">›</div>
+  <div class="pipe-block"><div class="pipe-count" id="p-approved">0</div><div class="pipe-label">APPROVED</div></div>
+  <div class="pipe-arrow">›</div>
+  <div class="pipe-block"><div class="pipe-count" id="p-printify">0</div><div class="pipe-label">PRODUCTS</div></div>
+  <div class="pipe-arrow">›</div>
+  <div class="pipe-block"><div class="pipe-count" id="p-listings">0</div><div class="pipe-label">LISTINGS</div></div>
+  <div class="pipe-arrow">›</div>
+  <div class="pipe-block"><div class="pipe-count" id="p-ads">0</div><div class="pipe-label">AD CAMPAIGNS</div></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// ISOMETRIC CITY — ETSY POD MISSION CONTROL
+// ═══════════════════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('city');
+const ctx = canvas.getContext('2d');
+
+let W, H, OX, OY;
+const TILE_W = 56;
+const TILE_H = 28;
+const FLOOR_H = 16;
+const GRID_W = 14;
+const GRID_H = 14;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  OX = W / 2;
+  OY = H / 2 - 40;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Isometric projection ─────────────────────────────────────────────────────
+function g2s(gx, gy, gz = 0) {
+  return {
+    x: OX + (gx - gy) * (TILE_W / 2),
+    y: OY + (gx + gy) * (TILE_H / 2) - gz * FLOOR_H,
+  };
+}
+
+// ── Hex color utilities ───────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const n = parseInt(hex.replace('#',''), 16);
+  return { r: (n>>16)&255, g: (n>>8)&255, b: n&255 };
+}
+function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
+function faceColors(glowHex, active, pulse) {
+  const { r, g, b } = hexToRgb(glowHex);
+  const t = active ? (0.2 + pulse * 0.08) : 0.06;
+  const base = { r: 8, g: 12, b: 22 };
+  const mk = (rt, gt, bt) =>
+    `rgb(${lerp(base.r, r, rt)},${lerp(base.g, g, gt)},${lerp(base.b, b, bt)})`;
+  return {
+    top:   mk(t * 1.5, t * 1.5, t * 2.0),
+    right: mk(t * 0.7, t * 0.7, t * 1.0),
+    front: mk(t * 0.5, t * 0.5, t * 0.8),
+  };
+}
+
+// ── Agent building definitions ────────────────────────────────────────────────
+const AGENT_DEFS = [
+  {
+    id: '00', name: 'ORCHESTRATOR HQ', role: 'MASTER CONTROLLER',
+    agentKey: null,
+    gx: 5, gy: 5, w: 3, d: 3, h: 10,
+    glow: '#ffaa00',
+    statsOf: (d) => ({
+      'Agents Online': d.agents.filter(a=>a.status==='online').length + '/7',
+      'Total Listings': d.pipeline.etsy_listings,
+      'Net Profit': '$' + (d.financials.netProfit||0).toFixed(2),
+    }),
+  },
+  {
+    id: '01', name: 'TREND SCOUT', role: 'MARKET INTELLIGENCE',
+    agentKey: 'trend-scout',
+    gx: 1, gy: 2, w: 2, d: 2, h: 4,
+    glow: '#cc44ff',
+    statsOf: (d) => ({
+      'Trends Found': d.pipeline.trends,
+      'Errors': d.agents.find(a=>a.name==='trend-scout')?.errorCount || 0,
+    }),
+  },
+  {
+    id: '02', name: 'DESIGN LAB', role: 'AI IMAGE GENERATION',
+    agentKey: 'design-generation',
+    gx: 9, gy: 1, w: 2, d: 2, h: 5,
+    glow: '#ff44cc',
+    statsOf: (d) => ({
+      'Queue Size': d.pipeline.design_queue,
+      'Approved': d.pipeline.approved_designs,
+    }),
+  },
+  {
+    id: '03', name: 'PRINTIFY FORGE', role: 'PRODUCT MANUFACTURING',
+    agentKey: 'printify-integration',
+    gx: 11, gy: 5, w: 2, d: 2, h: 4,
+    glow: '#ff7700',
+    statsOf: (d) => ({
+      'Products Made': d.pipeline.printify_products,
+      'Pending': d.pipeline.approved_designs,
+    }),
+  },
+  {
+    id: '04', name: 'ETSY MARKET', role: 'LISTING AUTOMATION',
+    agentKey: 'etsy-listing',
+    gx: 9, gy: 9, w: 2, d: 2, h: 5,
+    glow: '#00ff88',
+    statsOf: (d) => ({
+      'Live Listings': d.pipeline.etsy_listings,
+      'Products': d.pipeline.printify_products,
+    }),
+  },
+  {
+    id: '05', name: 'AD BROADCAST', role: 'CAMPAIGN AUTOMATION',
+    agentKey: 'ad-campaign',
+    gx: 4, gy: 11, w: 2, d: 2, h: 3,
+    glow: '#0099ff',
+    statsOf: (d) => ({
+      'Campaigns': d.pipeline.ad_campaigns,
+      'Ad Spend': '$' + (d.financials.adSpend||0).toFixed(2),
+    }),
+  },
+  {
+    id: '06', name: 'ANALYTICS CENTER', role: 'PERFORMANCE OPTIMIZER',
+    agentKey: 'analytics-optimization',
+    gx: 1, gy: 9, w: 2, d: 2, h: 4,
+    glow: '#00ddcc',
+    statsOf: (d) => ({
+      'Revenue': '$' + (d.financials.revenue||0).toFixed(2),
+      'Orders': d.financials.orders,
+    }),
+  },
+  {
+    id: '07', name: 'WATCHDOG', role: 'ERROR RECOVERY',
+    agentKey: 'error-recovery',
+    gx: 1, gy: 5, w: 2, d: 2, h: 3,
+    glow: '#ff3344',
+    statsOf: (d) => ({
+      'Errors Caught': d.errors.length,
+      'All Agents': d.agents.filter(a=>a.status!=='offline').length + '/7',
+    }),
+  },
+];
+
+// Pipeline connection edges (which buildings are connected by data flow)
+const EDGES = [
+  [0, 1], [1, 2], [2, 0], [0, 3], [3, 4], [4, 5], [5, 0], [0, 6], [0, 7],
+];
+
+// ── Particle system ───────────────────────────────────────────────────────────
+const particles = [];
+const MAX_PARTICLES = 80;
+
+function spawnParticle(fromDef, toDef, glow) {
+  if (particles.length >= MAX_PARTICLES) return;
+  // Start from center of source building top face
+  const sx = fromDef.gx + fromDef.w / 2;
+  const sy = fromDef.gy + fromDef.d / 2;
+  const tx = toDef.gx + toDef.w / 2;
+  const ty = toDef.gy + toDef.d / 2;
+  const sh = fromDef.h, th = toDef.h;
+
+  particles.push({ sx, sy, sh, tx, ty, th, t: 0, speed: 0.004 + Math.random() * 0.004, glow, size: 2 + Math.random() * 2 });
+}
+
+function updateParticles(ts) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    particles[i].t += particles[i].speed;
+    if (particles[i].t >= 1) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const t = p.t;
+    const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    const gx = p.sx + (p.tx - p.sx) * ease;
+    const gy = p.sy + (p.ty - p.sy) * ease;
+    const gz = p.sh + (p.th - p.sh) * ease + Math.sin(t * Math.PI) * 2;
+    const pos = g2s(gx, gy, gz);
+
+    const alpha = Math.sin(t * Math.PI);
+    ctx.shadowColor = p.glow;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fillStyle = p.glow.replace(')', `,${alpha})`).replace('rgb', 'rgba');
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ── Ground tiles ──────────────────────────────────────────────────────────────
+function drawGround() {
+  for (let x = 0; x < GRID_W; x++) {
+    for (let y = 0; y < GRID_H; y++) {
+      const a = g2s(x, y);
+      const b = g2s(x+1, y);
+      const c = g2s(x+1, y+1);
+      const d = g2s(x, y+1);
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.lineTo(c.x, c.y);
+      ctx.lineTo(d.x, d.y);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(5,12,28,0.8)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,80,160,0.12)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+  }
+}
+
+// ── Connection roads ──────────────────────────────────────────────────────────
+function drawConnections(ts) {
+  for (const [ai, bi] of EDGES) {
+    const a = AGENT_DEFS[ai], b = AGENT_DEFS[bi];
+    const sx = a.gx + a.w / 2, sy = a.gy + a.d / 2;
+    const tx = b.gx + b.w / 2, ty = b.gy + b.d / 2;
+    const sh = a.h * 0.6, th = b.h * 0.6;
+
+    // Draw dashed line
+    const steps = 20;
+    ctx.save();
+    ctx.setLineDash([3, 6]);
+    ctx.strokeStyle = 'rgba(0,100,200,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const gx = sx + (tx - sx) * t;
+      const gy = sy + (ty - sy) * t;
+      const gz = sh + (th - sh) * t;
+      const p = g2s(gx, gy, gz);
+      i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ── Building draw ─────────────────────────────────────────────────────────────
+function drawBuilding(def, pulse, active) {
+  const { gx, gy, w, d, h, glow } = def;
+  const c = faceColors(glow, active, pulse);
+  const glowBlur = active ? 15 + pulse * 12 : 4;
+
+  const A = g2s(gx,   gy,   h);
+  const B = g2s(gx+w, gy,   h);
+  const C = g2s(gx+w, gy+d, h);
+  const D = g2s(gx,   gy+d, h);
+  const F = g2s(gx+w, gy,   0);
+  const G = g2s(gx+w, gy+d, 0);
+  const Hp = g2s(gx,  gy+d, 0);
+
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = glowBlur;
+
+  // Right face (east)
+  ctx.beginPath();
+  ctx.moveTo(B.x, B.y); ctx.lineTo(C.x, C.y);
+  ctx.lineTo(G.x, G.y); ctx.lineTo(F.x, F.y);
+  ctx.closePath();
+  ctx.fillStyle = c.right;
+  ctx.fill();
+
+  // Front face (south)
+  ctx.beginPath();
+  ctx.moveTo(C.x, C.y); ctx.lineTo(D.x, D.y);
+  ctx.lineTo(Hp.x, Hp.y); ctx.lineTo(G.x, G.y);
+  ctx.closePath();
+  ctx.fillStyle = c.front;
+  ctx.fill();
+
+  // Top face
+  ctx.beginPath();
+  ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y);
+  ctx.lineTo(C.x, C.y); ctx.lineTo(D.x, D.y);
+  ctx.closePath();
+  ctx.fillStyle = c.top;
+  ctx.fill();
+
+  // Edge glow lines
+  ctx.shadowBlur = glowBlur * 1.5;
+  ctx.strokeStyle = active
+    ? glow.replace(')', ',0.6)').replace('rgb', 'rgba')
+    : 'rgba(50,100,180,0.2)';
+  ctx.lineWidth = active ? 1.5 : 0.5;
+  ctx.stroke();
+
+  // Pulsing ring on active buildings
+  if (active) {
+    const center = g2s(gx + w/2, gy + d/2, h + 0.3);
+    const ring = 12 + pulse * 8;
+    ctx.beginPath();
+    ctx.ellipse(center.x, center.y, ring * 1.8, ring * 0.8, 0, 0, Math.PI*2);
+    ctx.strokeStyle = glow.replace(')', `,${0.3 * (1-pulse)})`).replace('rgb','rgba');
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+
+  // Window lights (horizontal strips on the faces)
+  if (h > 3) {
+    for (let floor = 1; floor < h - 1; floor += 2) {
+      const pct = active ? (0.4 + pulse * 0.2) : 0.1;
+      const wColor = glow.replace(')', `,${pct})`).replace('rgb','rgba');
+      // Windows on front face
+      const wL = g2s(gx + 0.15, gy + d, floor + 0.5);
+      const wR = g2s(gx + w - 0.15, gy + d, floor + 0.5);
+      ctx.beginPath();
+      ctx.moveTo(wL.x, wL.y); ctx.lineTo(wR.x, wR.y);
+      ctx.strokeStyle = wColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+}
+
+// ── Building label ────────────────────────────────────────────────────────────
+function drawLabel(def, status) {
+  const cx = def.gx + def.w / 2;
+  const cy = def.gy + def.d / 2;
+  const labelPos = g2s(cx, cy, def.h + 1.5);
+  const active = status === 'online';
+
+  ctx.shadowColor = def.glow;
+  ctx.shadowBlur = active ? 10 : 3;
+
+  ctx.font = `bold 11px 'Courier New'`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = active ? '#ffffff' : 'rgba(160,196,255,0.4)';
+  ctx.fillText(def.name, labelPos.x, labelPos.y);
+
+  // Status dot below label
+  const dotPos = g2s(cx, cy, def.h + 0.8);
+  ctx.beginPath();
+  ctx.arc(dotPos.x, dotPos.y, 3, 0, Math.PI * 2);
+  ctx.fillStyle = status === 'online' ? '#00ff88' : status === 'idle' ? '#ffaa00' : '#ff4444';
+  ctx.shadowBlur = 8;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+}
+
+// ── Stars background ──────────────────────────────────────────────────────────
+const stars = Array.from({ length: 120 }, () => ({
+  x: Math.random(), y: Math.random(),
+  r: Math.random() * 1.2,
+  a: Math.random(),
+  speed: 0.0003 + Math.random() * 0.0005,
+}));
+
+function drawStars(ts) {
+  for (const s of stars) {
+    const alpha = 0.2 + Math.sin(ts * s.speed + s.a * 100) * 0.15;
+    ctx.beginPath();
+    ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(160,200,255,${alpha})`;
+    ctx.fill();
+  }
+}
+
+// ── Decorative antenna on Trend Scout ────────────────────────────────────────
+function drawAntenna(def, active, ts) {
+  const base = g2s(def.gx + def.w/2, def.gy + def.d/2, def.h);
+  const tip  = g2s(def.gx + def.w/2, def.gy + def.d/2, def.h + 2.5);
+  const pct  = active ? 0.7 + Math.sin(ts * 0.003) * 0.3 : 0.2;
+
+  ctx.beginPath();
+  ctx.moveTo(base.x, base.y); ctx.lineTo(tip.x, tip.y);
+  ctx.strokeStyle = active ? def.glow : 'rgba(100,140,200,0.3)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = def.glow; ctx.shadowBlur = active ? 10 : 2;
+  ctx.stroke();
+
+  // Rotating dish lines
+  for (let i = 0; i < 3; i++) {
+    const angle = ts * 0.001 + (i * Math.PI * 2 / 3);
+    const spread = 18;
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(tip.x + Math.cos(angle) * spread, tip.y + Math.sin(angle) * spread * 0.4);
+    ctx.strokeStyle = `rgba(200,100,255,${pct * 0.5})`;
+    ctx.lineWidth = 1;
+    ctx.shadowBlur = 4;
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+}
+
+// ── Floating data cube above Design Lab ──────────────────────────────────────
+function drawFloatingCubes(def, active, ts) {
+  if (!active) return;
+  const numCubes = 3;
+  for (let i = 0; i < numCubes; i++) {
+    const orbit = def.h + 2 + Math.sin(ts * 0.002 + i * 2.1) * 0.8;
+    const ox = def.gx + def.w/2 + Math.cos(ts * 0.001 + i * 2.1) * 1.2;
+    const oy = def.gy + def.d/2 + Math.sin(ts * 0.001 + i * 2.1) * 0.8;
+    const pos = g2s(ox, oy, orbit);
+
+    const s = 5;
+    ctx.save();
+    ctx.shadowColor = def.glow; ctx.shadowBlur = 12;
+    ctx.strokeStyle = def.glow.replace(')', ',0.8)').replace('rgb','rgba');
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(pos.x - s, pos.y - s, s*2, s*2);
+    ctx.restore();
+  }
+}
+
+// ── Horizon glow ──────────────────────────────────────────────────────────────
+function drawHorizonGlow() {
+  const grad = ctx.createRadialGradient(OX, OY, 0, OX, OY, Math.max(W, H) * 0.7);
+  grad.addColorStop(0, 'rgba(0,30,80,0.3)');
+  grad.addColorStop(0.5, 'rgba(0,10,40,0.15)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ── Hover detection ───────────────────────────────────────────────────────────
+let hoveredAgent = null;
+
+canvas.addEventListener('mousemove', (e) => {
+  const mx = e.clientX, my = e.clientY;
+  hoveredAgent = null;
+
+  for (const def of AGENT_DEFS) {
+    // Check if mouse is within the isometric bounding box of the building
+    // Approximate: check screen-space bounding rect of top face
+    const A = g2s(def.gx, def.gy, def.h);
+    const B = g2s(def.gx + def.w, def.gy, def.h);
+    const C = g2s(def.gx + def.w, def.gy + def.d, def.h);
+    const D = g2s(def.gx, def.gy + def.d, def.h);
+    const ground = g2s(def.gx + def.w/2, def.gy + def.d/2, 0);
+
+    const minX = Math.min(A.x, B.x, C.x, D.x);
+    const maxX = Math.max(A.x, B.x, C.x, D.x);
+    const minY = Math.min(A.y, A.y);
+    const maxY = Math.max(ground.y, C.y);
+
+    if (mx >= minX - 10 && mx <= maxX + 10 && my >= minY - 20 && my <= maxY + 10) {
+      hoveredAgent = def;
+      break;
+    }
+  }
+  updateCard(e, hoveredAgent);
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoveredAgent = null;
+  document.getElementById('card').classList.add('hidden');
+});
+
+function updateCard(e, def) {
+  const card = document.getElementById('card');
+  if (!def) { card.classList.add('hidden'); return; }
+
+  const agent = liveData?.agents?.find(a => a.name === def.agentKey) || null;
+  const status = def.agentKey ? (agent?.status || 'offline') : 'online';
+
+  document.getElementById('card-id').textContent = def.id;
+  document.getElementById('card-name').textContent = def.name;
+  document.getElementById('card-role').textContent = def.role;
+
+  const dot = document.getElementById('card-dot');
+  const stText = document.getElementById('card-status-text');
+  dot.className = `dot ${status}`;
+  stText.className = `card-status-text ${status}`;
+  stText.textContent = status.toUpperCase();
+
+  // Stats
+  const stats = liveData ? def.statsOf(liveData) : {};
+  document.getElementById('card-stats').innerHTML = Object.entries(stats).map(
+    ([k, v]) => `<div class="card-stat"><span class="card-stat-key">${k}</span><span class="card-stat-val">${v}</span></div>`
+  ).join('');
+
+  // Recent logs
+  const logs = agent?.recentLog || [];
+  document.getElementById('card-log').innerHTML = logs.length
+    ? logs.map(l => `<div class="card-log-line">${l.replace(/^\[.*?\]\s*/,'').slice(0,60)}</div>`).join('')
+    : '';
+
+  // Position card
+  let cx = e.clientX + 20, cy = e.clientY - 20;
+  if (cx + 260 > W) cx = e.clientX - 280;
+  if (cy + 220 > H - 60) cy = H - 280;
+  card.style.left = cx + 'px';
+  card.style.top  = cy + 'px';
+  card.classList.remove('hidden');
+}
+
+// ── Live data ─────────────────────────────────────────────────────────────────
+let liveData = null;
+let lastSpawnTs = 0;
+
+function connectSSE() {
+  const evtSource = new EventSource('/events');
+  evtSource.onmessage = (e) => {
+    liveData = JSON.parse(e.data);
+    updateHUD();
+    updatePipeline();
+  };
+  evtSource.onerror = () => {
+    setTimeout(connectSSE, 3000);
+    evtSource.close();
+  };
+}
+
+function getAgentStatus(key) {
+  if (!liveData || !key) return 'online'; // orchestrator always online if page loaded
+  const a = liveData.agents.find(a => a.name === key);
+  return a?.status || 'offline';
+}
+
+function updateHUD() {
+  if (!liveData) return;
+  const f = liveData.financials;
+  const online = liveData.agents.filter(a=>a.status==='online').length;
+
+  const profitEl = document.getElementById('m-profit');
+  profitEl.textContent = '$' + (f.netProfit||0).toFixed(2);
+  profitEl.className = 'metric-val ' + (f.netProfit >= 0 ? 'green' : 'red');
+
+  document.getElementById('m-revenue').textContent  = '$' + (f.revenue||0).toFixed(2);
+  document.getElementById('m-spend').textContent    = '$' + (f.adSpend||0).toFixed(2);
+  document.getElementById('m-listings').textContent = liveData.pipeline.etsy_listings;
+  document.getElementById('m-orders').textContent   = f.orders||0;
+  document.getElementById('m-agents').textContent   = `${online}/7`;
+  document.getElementById('m-agents').className     = 'metric-val ' + (online === 7 ? 'green' : online > 4 ? '' : 'red');
+}
+
+function updatePipeline() {
+  if (!liveData) return;
+  const p = liveData.pipeline;
+  document.getElementById('p-trends').textContent   = p.trends;
+  document.getElementById('p-queue').textContent    = p.design_queue;
+  document.getElementById('p-approved').textContent = p.approved_designs;
+  document.getElementById('p-printify').textContent = p.printify_products;
+  document.getElementById('p-listings').textContent = p.etsy_listings;
+  document.getElementById('p-ads').textContent      = p.ad_campaigns;
+}
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  document.getElementById('clock').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Main render loop ──────────────────────────────────────────────────────────
+let lastSpawn = 0;
+
+function render(ts) {
+  requestAnimationFrame(render);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background gradient
+  const bg = ctx.createRadialGradient(OX, OY + 50, 0, OX, OY + 50, Math.max(W, H));
+  bg.addColorStop(0, '#030d20');
+  bg.addColorStop(1, '#010509');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  drawStars(ts);
+  drawHorizonGlow();
+  drawGround();
+  drawConnections(ts);
+
+  // Spawn particles periodically on active edges
+  if (ts - lastSpawn > 600 && liveData) {
+    for (const [ai, bi] of EDGES) {
+      if (Math.random() < 0.4) {
+        const aStatus = getAgentStatus(AGENT_DEFS[ai].agentKey);
+        const bStatus = getAgentStatus(AGENT_DEFS[bi].agentKey);
+        if (aStatus !== 'offline' || bi === 0) {
+          spawnParticle(AGENT_DEFS[ai], AGENT_DEFS[bi], AGENT_DEFS[ai].glow);
+        }
+      }
+    }
+    lastSpawn = ts;
+  }
+
+  updateParticles(ts);
+
+  // Sort buildings back-to-front (painter's algorithm)
+  const sorted = [...AGENT_DEFS].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
+
+  for (const def of sorted) {
+    const status = getAgentStatus(def.agentKey);
+    const active = status === 'online';
+    const pulse = (Math.sin(ts * 0.0015 + def.gx * 0.5) + 1) / 2;
+
+    drawBuilding(def, pulse, active);
+
+    // Decorations
+    if (def.id === '01') drawAntenna(def, active, ts);
+    if (def.id === '02') drawFloatingCubes(def, active, ts);
+  }
+
+  drawParticles();
+
+  // Labels last (always on top)
+  for (const def of sorted) {
+    drawLabel(def, getAgentStatus(def.agentKey));
+  }
+}
+
+// Start
+connectSSE();
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

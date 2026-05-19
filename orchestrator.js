@@ -34,6 +34,7 @@ const { fork } = require('child_process');
 const { initState, readState } = require('./lib/state-manager');
 const { validate: validateEnv } = require('./lib/env-validator');
 const { sleep } = require('./lib/rate-limiter');
+const { startDashboard } = require('./dashboard/server');
 
 // ── Directories ───────────────────────────────────────────────────────────────
 
@@ -203,8 +204,12 @@ async function main() {
   spawnAllAgents();
   console.log('\n✓ All 7 agents launched\n');
 
-  // 5. Live dashboard loop
-  await sleep(5000); // brief pause so first logs appear before dashboard takes over
+  // 5. Visual isometric dashboard (web)
+  const DASHBOARD_PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10);
+  startDashboard(DASHBOARD_PORT);
+
+  // 6. Terminal dashboard loop (fallback text view)
+  await sleep(5000);
   renderDashboard();
   setInterval(renderDashboard, DASHBOARD_INTERVAL_MS);
 }
